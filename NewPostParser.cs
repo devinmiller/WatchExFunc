@@ -3,7 +3,7 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using CotB.WatchExchange.Models;
 using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Host;
+using Microsoft.Azure.WebJobs.Extensions;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 
@@ -16,7 +16,10 @@ namespace CotB.WatchExchange
         private static HttpClient httpClient = new HttpClient();
 
         [FunctionName("NewPostParser")]
-        public static async Task Run([TimerTrigger("0 */5 * * * *")]TimerInfo myTimer, ILogger log)
+        public static async Task Run(
+            [TimerTrigger("0 */5 * * * *")]TimerInfo myTimer, 
+            [Table("Posts", Connection = "PostConn")]IAsyncCollector<PostData> output,
+            ILogger log)
         {
             log.LogInformation($"C# Timer trigger function executed at: {DateTime.Now}");
 

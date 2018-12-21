@@ -14,5 +14,11 @@ namespace CotB.WatchExchange.Models
 
         [JsonProperty("children")]
         public List<Post> Posts { get; set; }
+
+        [JsonProperty("before")]
+        public string Previous { get; set; }
+
+        [JsonProperty("after")]
+        public string Next { get; set; }
     }
 }
