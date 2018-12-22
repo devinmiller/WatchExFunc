@@ -1,10 +1,11 @@
 using System;
 using System.Collections.Generic;
+using Microsoft.WindowsAzure.Storage.Table;
 using Newtonsoft.Json;
 
 namespace CotB.WatchExchange.Models
 {
-    public class PostData
+    public class PostData : TableEntity
     {
         [JsonProperty("id")]
         public string Id { get; set; }
@@ -29,6 +30,9 @@ namespace CotB.WatchExchange.Models
 
         [JsonProperty("link_flair_type")]
         public string LinkFlairType { get; set; }
+
+        [JsonProperty("name")]
+        public string Name { get; set; }
 
         [JsonProperty("permalink")]
         public string Permalink { get; set; }
