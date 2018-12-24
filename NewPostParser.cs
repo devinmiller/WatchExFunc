@@ -25,7 +25,7 @@ namespace CotB.WatchExchange
 
         [FunctionName("NewPostParser")]
         public static async Task Run(
-            [TimerTrigger("0 */5 0-5,13-23 * * *")]TimerInfo myTimer, 
+            [TimerTrigger("0 */1 * * * *")]TimerInfo myTimer, 
             [Table("Posts", Connection = "WexConn")]CloudTable input,
             [Table("Posts", Connection = "WexConn")]IAsyncCollector<PostData> tableOutput,
             [Queue("notifications", Connection = "WexConn")]IAsyncCollector<Notification> queueOutput,

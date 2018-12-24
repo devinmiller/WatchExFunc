@@ -16,6 +16,9 @@ namespace CotB.WatchExchange.Models
         [JsonProperty("create_utc")]
         public uint CreatedUtc { get; set; }
 
+        [JsonProperty("domain")]
+        public string Domain { get; set; }
+
         [JsonProperty("is_meta")]
         public bool IsMeta { get; set; }
 
@@ -43,8 +46,14 @@ namespace CotB.WatchExchange.Models
         [JsonProperty("pinned")]
         public bool Pinned { get; set; }
 
+        [JsonProperty("preview")]
+        public Preview Preview { get; set; }
+
         [JsonProperty("self_text")]
         public string SelfText { get; set; }
+
+        [JsonProperty("thumbnail")]
+        public string Thumbnail { get; set; }
 
         [JsonProperty("stickied")]
         public bool Stickied { get; set; }
