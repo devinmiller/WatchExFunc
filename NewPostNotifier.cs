@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using CotB.WatchExchange.Models;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Host;
@@ -33,11 +34,18 @@ namespace CotB.WatchExchange
             string to = config["TwilioMessageTo"];
             string from = config["TwilioMessageFrom"];
 
-            messages.AddAsync(new CreateMessageOptions(new PhoneNumber(to))
+            CreateMessageOptions message = new CreateMessageOptions(new PhoneNumber(to))
             {
                 Body = $"{notification.Title} - https://redd.it/{notification.Id.Replace("t3_", string.Empty)}",
                 From = from
-            });
+            };
+
+            if(!string.IsNullOrWhiteSpace(notification.ImageUrl))
+            {
+                message.MediaUrl = new List<Uri>() { new Uri(notification.ImageUrl) };
+            }
+
+            messages.AddAsync(message);
         }
     }
 }

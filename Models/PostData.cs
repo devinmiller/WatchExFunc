@@ -31,6 +31,9 @@ namespace CotB.WatchExchange.Models
         [JsonProperty("link_flair_type")]
         public string LinkFlairType { get; set; }
 
+        [JsonIgnore]
+        public string MediaUrl { get; set; }
+
         [JsonProperty("name")]
         public string Name { get; set; }
 

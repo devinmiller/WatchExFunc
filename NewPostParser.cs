@@ -1,14 +1,19 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using CotB.WatchExchange.Models;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions;
+using Microsoft.Azure.WebJobs.Extensions.Storage;
 using Microsoft.Extensions.Logging;
 using Microsoft.WindowsAzure.Storage.Table;
+using Microsoft.WindowsAzure.Storage.Blob;
 using Newtonsoft.Json;
+
 
 namespace CotB.WatchExchange
 {
@@ -20,10 +25,11 @@ namespace CotB.WatchExchange
 
         [FunctionName("NewPostParser")]
         public static async Task Run(
-            [TimerTrigger("0 */5 13-23,0-5 * * *")]TimerInfo myTimer, 
+            [TimerTrigger("0 */5 0-5,13-23 * * *")]TimerInfo myTimer, 
             [Table("Posts", Connection = "WexConn")]CloudTable input,
             [Table("Posts", Connection = "WexConn")]IAsyncCollector<PostData> tableOutput,
             [Queue("notifications", Connection = "WexConn")]IAsyncCollector<Notification> queueOutput,
+            [Blob("images", FileAccess.ReadWrite, Connection = "WexConn")]CloudBlobContainer blobOutput,
             ILogger log)
         {
             log.LogInformation($"C# Timer trigger function executed at: {DateTime.Now}");
@@ -68,10 +74,40 @@ namespace CotB.WatchExchange
                             //Add entity to storage table if not found
                             await tableOutput.AddAsync(post);
 
+                            //Create notification entity
+                            Notification notification = new Notification(post.Id, post.Title);
+
+                            //Self post will not include an image (I think)
+                            if(!post.IsSelf)
+                            {
+                                //Regex for determining if link is an image
+                                Regex imageRegex = new Regex(@"\.(jpg|gif|png)$");
+                                
+                                Uri postLink = new Uri(post.Url);
+
+                                //Check if link is an image based on the regex
+                                bool isImageFile = imageRegex.IsMatch(postLink.Segments.Last());
+
+                                if(isImageFile)
+                                {
+                                    //Stream image from link
+                                    using(Stream stream = await httpClient.GetStreamAsync(post.Url))
+                                    {
+                                        //Create block blob reference
+                                        CloudBlockBlob blob = blobOutput.GetBlockBlobReference($"{post.Id}_{postLink.Segments.Last()}");
+                                        
+                                        //Write image stream to blob block
+                                        await blob.UploadFromStreamAsync(stream);
+
+                                        notification.ImageUrl = blob.Uri.ToString();
+                                    }
+                                }
+                            }                            
+
                             log.LogInformation($"Adding new post {post.Id} to storage queue");
 
                             //Add new notification entity to queue
-                            await queueOutput.AddAsync(new Notification(post.Id, post.Title));
+                            await queueOutput.AddAsync(notification);
 
                             total++;
                         }
