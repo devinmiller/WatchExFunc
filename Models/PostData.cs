@@ -34,9 +34,6 @@ namespace CotB.WatchExchange.Models
         [JsonProperty("link_flair_type")]
         public string LinkFlairType { get; set; }
 
-        [JsonIgnore]
-        public string MediaUrl { get; set; }
-
         [JsonProperty("name")]
         public string Name { get; set; }
 
@@ -48,6 +45,9 @@ namespace CotB.WatchExchange.Models
 
         [JsonProperty("preview")]
         public Preview Preview { get; set; }
+
+        [JsonProperty("secure_media")]
+        public SecureMedia SecureMedia { get; set; }
 
         [JsonProperty("self_text")]
         public string SelfText { get; set; }
