@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using CotB.WatchExchange.Models;
+using CotB.WatchExchange.Models.Queue;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Host;
 using Microsoft.Extensions.Configuration;
@@ -29,7 +30,7 @@ namespace CotB.WatchExchange
                 .AddEnvironmentVariables()
                 .Build();
 
-            Notification notification = JsonConvert.DeserializeObject<Notification>(queueItem);
+            PostNotification notification = JsonConvert.DeserializeObject<PostNotification>(queueItem);
 
             string to = config["TwilioMessageTo"];
             string from = config["TwilioMessageFrom"];

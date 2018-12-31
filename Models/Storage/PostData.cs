@@ -1,12 +1,19 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.WindowsAzure.Storage.Table;
 using Newtonsoft.Json;
 
-namespace CotB.WatchExchange.Models
+namespace CotB.WatchExchange.Models.Storage
 {
     public class PostData : TableEntity
     {
+        private bool _previewEnabled;
+        private string _previewUrl;
+
+        private bool _mediaEnabled;
+        private string _mediaUrl;
+
         [JsonProperty("id")]
         public string Id { get; set; }
 
@@ -46,8 +53,76 @@ namespace CotB.WatchExchange.Models
         [JsonProperty("preview")]
         public Preview Preview { get; set; }
 
+        public bool PreviewEnabled 
+        { 
+            get
+            {
+                if(Preview != null)
+                {
+                    return Preview.Enabled;
+                }
+
+                return _previewEnabled;
+            }
+            set
+            {
+                _previewEnabled = value;
+            } 
+        }
+
+        public string PreviewUrl 
+        { 
+            get
+            {
+                if(Preview != null && Preview.Images.Any())
+                {
+                    return Preview.Images.First().Source.Url;
+                }
+
+                return _previewUrl;
+            }
+            set
+            {
+                _previewUrl = value;
+            } 
+        }
+
         [JsonProperty("secure_media")]
         public SecureMedia SecureMedia { get; set; }
+
+        public bool SecureMediaEnabled 
+        { 
+            get
+            {
+                if(SecureMedia != null)
+                {
+                    return true;
+                }
+
+                return _mediaEnabled;
+            }
+            set
+            {
+                _mediaEnabled = value;
+            } 
+        }
+
+        public string SecureMediaUrl 
+        { 
+            get
+            {
+                if(SecureMedia != null && SecureMedia.Data != null)
+                {
+                    return SecureMedia.Data.ThumbnailUrl;
+                }
+
+                return _mediaUrl;
+            }
+            set
+            {
+                _mediaUrl = value;
+            } 
+        }
 
         [JsonProperty("self_text")]
         public string SelfText { get; set; }

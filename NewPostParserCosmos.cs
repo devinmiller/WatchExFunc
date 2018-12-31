@@ -15,21 +15,24 @@ using Microsoft.WindowsAzure.Storage.Table;
 using Microsoft.WindowsAzure.Storage.Blob;
 using Newtonsoft.Json;
 using Microsoft.Azure.Documents.Linq;
+using CotB.WatchExchange.Models.Cosmos;
+using CotB.WatchExchange.Models.Queue;
 
 namespace CotB.WatchExchange
 {
-    public static class NewPostParserV2
+    public static class NewPostParserCosmos
     {
         // Create a single, static HttpClient
         // https://docs.microsoft.com/en-us/azure/azure-functions/manage-connections
         private static HttpClient httpClient = new HttpClient();
 
-        [FunctionName("NewPostParserV2")]
+        [Disable]
+        [FunctionName("NewPostParserCosmos")]
         public static async Task Run(
             [TimerTrigger("0 */5 0-5,13-23 * * *")]TimerInfo myTimer, 
             [CosmosDB("WatchExchange", "Posts", ConnectionStringSetting = "WexConnCosmos")]DocumentClient documentClient,
             [CosmosDB("WatchExchange", "Posts", ConnectionStringSetting = "WexConnCosmos")]IAsyncCollector<dynamic> documentOutput,
-            [Queue("notifications", Connection = "WexConn")]IAsyncCollector<Notification> queueOutput,
+            [Queue("notifications", Connection = "WexConn")]IAsyncCollector<PostNotification> queueOutput,
             [Blob("images", FileAccess.ReadWrite, Connection = "WexConn")]CloudBlobContainer blobOutput,
             ILogger log)
         {
@@ -47,7 +50,7 @@ namespace CotB.WatchExchange
                 string result = await response.Content.ReadAsStringAsync();
                 // Take the string content and deserialize
                 Listing listing = JsonConvert.DeserializeObject<Listing>(result);
-
+                // Flatten deserialized content into a list of post data
                 List<PostData> posts = listing?.Data?.Posts?
                     .Select(post => post.Data)
                     .ToList();
@@ -79,7 +82,7 @@ namespace CotB.WatchExchange
                             await documentOutput.AddAsync(post);
 
                             //Create notification entity
-                            Notification notification = new Notification(post.Id, post.Title);
+                            PostNotification notification = new PostNotification(post.Id, post.Title);
 
                             string imageUrl = await UploadImage(post, blobOutput);
 
