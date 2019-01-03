@@ -30,23 +30,27 @@ namespace CotB.WatchExchange
                 .AddEnvironmentVariables()
                 .Build();
 
-            PostNotification notification = JsonConvert.DeserializeObject<PostNotification>(queueItem);
-
-            string to = config["TwilioMessageTo"];
-            string from = config["TwilioMessageFrom"];
-
-            CreateMessageOptions message = new CreateMessageOptions(new PhoneNumber(to))
+            // Ugly, but will prevent notifications from being sent from 13:00PM - 04:00AM GMT
+            if(DateTime.Now.Hour < 4 || DateTime.Now.Hour >= 13) 
             {
-                Body = $"{notification.Title} - https://redd.it/{notification.Id.Replace("t3_", string.Empty)}",
-                From = from
-            };
+                PostNotification notification = JsonConvert.DeserializeObject<PostNotification>(queueItem);
 
-            if(!string.IsNullOrWhiteSpace(notification.ImageUrl))
-            {
-                message.MediaUrl = new List<Uri>() { new Uri(notification.ImageUrl) };
+                string to = config["TwilioMessageTo"];
+                string from = config["TwilioMessageFrom"];
+
+                CreateMessageOptions message = new CreateMessageOptions(new PhoneNumber(to))
+                {
+                    Body = $"{notification.Title} - https://redd.it/{notification.Id.Replace("t3_", string.Empty)}",
+                    From = from
+                };
+
+                if(!string.IsNullOrWhiteSpace(notification.ImageUrl))
+                {
+                    message.MediaUrl = new List<Uri>() { new Uri(notification.ImageUrl) };
+                }
+
+                messages.AddAsync(message);
             }
-
-            messages.AddAsync(message);
         }
     }
 }

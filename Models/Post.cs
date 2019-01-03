@@ -1,15 +1,14 @@
 using System;
-using System.Collections.Generic;
 using Newtonsoft.Json;
 
-namespace CotB.WatchExchange.Models.Cosmos
+namespace CotB.WatchExchange.Models
 {
-    public class Listing
+    public class Post
     {
         [JsonProperty("kind")]
         public string Kind { get; set; }
 
         [JsonProperty("data")]
-        public ListingData Data { get; set; }
+        public PostData Data { get; set; }
     }
 }

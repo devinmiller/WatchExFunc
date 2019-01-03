@@ -15,7 +15,6 @@ using Microsoft.WindowsAzure.Storage.Table;
 using Microsoft.WindowsAzure.Storage.Blob;
 using Newtonsoft.Json;
 using Microsoft.Azure.Documents.Linq;
-using CotB.WatchExchange.Models.Cosmos;
 using CotB.WatchExchange.Models.Queue;
 
 namespace CotB.WatchExchange

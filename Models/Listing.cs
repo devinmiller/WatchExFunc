@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Newtonsoft.Json;
 
-namespace CotB.WatchExchange.Models.Storage
+namespace CotB.WatchExchange.Models
 {
     public class Listing
     {

@@ -5,7 +5,7 @@ using System.Net.Http;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using CotB.WatchExchange.Models.Queue;
-using CotB.WatchExchange.Models.Storage;
+using CotB.WatchExchange.Models;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Host;
 using Microsoft.Extensions.Logging;
@@ -21,6 +21,7 @@ namespace CotB.WatchExchange
         // https://docs.microsoft.com/en-us/azure/azure-functions/manage-connections
         private static HttpClient httpClient = new HttpClient();
 
+        [Disable]
         [FunctionName("NewPostDownloader")]
         public static async Task Run(
             [QueueTrigger("downloads", Connection = "WexConn")]string queueItem, 
@@ -73,7 +74,7 @@ namespace CotB.WatchExchange
                 log.LogInformation($"Adding new post {post.Id} to notification queue");
 
                 //Add new notification entity to queue
-                //await queueOutput.AddAsync(notification);
+                await queueOutput.AddAsync(notification);
             }
         }
 
@@ -86,9 +87,9 @@ namespace CotB.WatchExchange
             //     return new Uri(url.Remove(url.IndexOf('?')));
             // }
 
-            if(post.SecureMediaEnabled)
+            if(post.SecureMedia != null)
             {
-                var url = post.SecureMediaUrl;
+                var url = post?.SecureMedia?.Data.ThumbnailUrl;
 
                 return new Uri(url.Remove(url.IndexOf('?')));
             }

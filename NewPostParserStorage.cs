@@ -13,7 +13,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.WindowsAzure.Storage.Table;
 using Microsoft.WindowsAzure.Storage.Blob;
 using Newtonsoft.Json;
-using CotB.WatchExchange.Models.Storage;
 using CotB.WatchExchange.Models.Queue;
 
 namespace CotB.WatchExchange
@@ -26,10 +25,10 @@ namespace CotB.WatchExchange
 
         [FunctionName("NewPostParserStorage")]
         public static async Task Run(
-            [TimerTrigger("0 */1 * * * *")]TimerInfo myTimer, 
+            [TimerTrigger("0 */5 * * * *")]TimerInfo myTimer, 
             [Table("Posts", Connection = "WexConn")]CloudTable input,
             [Table("Posts", Connection = "WexConn")]IAsyncCollector<PostData> tableOutput,
-            [Queue("downloads", Connection = "WexConn")]IAsyncCollector<PostData> queueOutput,
+            [Queue("notifications", Connection = "WexConn")]IAsyncCollector<PostNotification> queueOutput,
             ILogger log)
         {
             log.LogInformation($"C# Timer trigger function executed at: {DateTime.Now}");
@@ -74,10 +73,10 @@ namespace CotB.WatchExchange
                             //Add entity to storage table if not found
                             await tableOutput.AddAsync(post);                          
 
-                            log.LogInformation($"Adding new post {post.Id} to download queue");
+                            log.LogInformation($"Adding new post {post.Id} to notification queue");
 
                             //Add new download entity to queue
-                            await queueOutput.AddAsync(post);
+                            await queueOutput.AddAsync(new PostNotification(post.Id, post.Title));
 
                             total++;
                         }
