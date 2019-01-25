@@ -12,6 +12,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.WindowsAzure.Storage.Blob;
 using Microsoft.WindowsAzure.Storage.Table;
 using Newtonsoft.Json;
+using System.Web;
 
 namespace CotB.WatchExchange
 {
@@ -21,85 +22,77 @@ namespace CotB.WatchExchange
         // https://docs.microsoft.com/en-us/azure/azure-functions/manage-connections
         private static HttpClient httpClient = new HttpClient();
 
-        [Disable]
         [FunctionName("NewPostDownloader")]
         public static async Task Run(
             [QueueTrigger("downloads", Connection = "WexConn")]string queueItem, 
             [Table("Posts", Connection = "WexConn")]CloudTable input,
-            [Queue("notifications", Connection = "WexConn")]IAsyncCollector<PostNotification> queueOutput,
+            [Queue("notifications", Connection = "WexConn")]IAsyncCollector<Notification> queueOutput,
             [Blob("images", FileAccess.ReadWrite, Connection = "WexConn")]CloudBlobContainer blobOutput,
             ILogger log)
         {
             log.LogInformation($"C# Queue trigger function processed.");
 
-            PostData post = JsonConvert.DeserializeObject<PostData>(queueItem);
+            Download download = JsonConvert.DeserializeObject<Download>(queueItem);
+
+            //Create the retrieve operation that checks if entity exists
+            TableOperation fetchOp = TableOperation.Retrieve<PostData>(download.Author, download.Id);
+
+            //Execute the retrieve operation
+            TableResult fetchResult = await input.ExecuteAsync(fetchOp);
+
+            PostData post = fetchResult.Result as PostData;
 
             //Check if the retrieve operation returned a result
             if(post == null)
             {
-                log.LogWarning($"Unable to find post with id {post.Id}");
+                log.LogError($"Unable to retrieve post with Id {download.Id}");
             }
             else
             {
-                log.LogInformation($"Attempting to download image for post id {post.Id}");
-
-                //Regex for determining if link is an image
-                Regex imageRegex = new Regex(@"\.(jpg|jpeg|gif|png)$");
-                
-                // Attempt to get a link to the post image
-                Uri postLink = GetImageUri(post);
-
-                //Check if link is an image based on the regex
-                bool isImageFile = postLink != null && imageRegex.IsMatch(postLink.Segments.Last());
-
-                //Create notification entity
-                PostNotification notification = new PostNotification(post.Id, post.Title);
-
-                if(isImageFile)
+                if(download.ThumbnailUrl != "self")
                 {
+                    log.LogInformation($"Downloading image from {download.ThumbnailUrl}");
+                    
                     //Stream image from link
-                    using(Stream stream = await httpClient.GetStreamAsync(postLink.ToString()))
+                    using(Stream stream = await httpClient.GetStreamAsync(download.ThumbnailUrl))
                     {
                         //Create block blob reference
-                        CloudBlockBlob blob = blobOutput.GetBlockBlobReference($"{post.Id}_{postLink.Segments.Last()}");
+                        CloudBlockBlob blob = blobOutput.GetBlockBlobReference($"{download.Id}_thumbnail.jpg");
+                        
+                        //Write image stream to blob block
+                        await blob.UploadFromStreamAsync(stream);
+                    }
+
+                    post.HasThumbnail = true;
+                }
+
+                Preview preview = download.Preview;
+
+                if(preview != null)
+                {
+                    Image image = preview.Images.FirstOrDefault();
+
+                    log.LogInformation($"Downloading image from {HttpUtility.HtmlDecode(image.Source.Url)}");
+
+                    //Stream image from link
+                    using(Stream stream = await httpClient.GetStreamAsync(HttpUtility.HtmlDecode(image.Source.Url)))
+                    {
+                        //Create block blob reference
+                        CloudBlockBlob blob = blobOutput.GetBlockBlobReference($"{download.Id}_preview_source.jpg");
                         
                         //Write image stream to blob block
                         await blob.UploadFromStreamAsync(stream);
 
-                        notification.ImageUrl = blob.Uri.ToString();
+                        post.HasPreview = true;
                     }
                 }
-                                          
 
-                log.LogInformation($"Adding new post {post.Id} to notification queue");
+                // Create the Replace TableOperation.
+                TableOperation updateOperation = TableOperation.Replace(post);
 
-                //Add new notification entity to queue
-                await queueOutput.AddAsync(notification);
+                // Execute the operation.
+                await input.ExecuteAsync(updateOperation);
             }
-        }
-
-        private static Uri GetImageUri(PostData post)
-        {
-            // if(post.PreviewEnabled)
-            // {
-            //     var url = post.PreviewUrl;
-
-            //     return new Uri(url.Remove(url.IndexOf('?')));
-            // }
-
-            if(post.SecureMedia != null)
-            {
-                var url = post?.SecureMedia?.Data.ThumbnailUrl;
-
-                return new Uri(url.Remove(url.IndexOf('?')));
-            }
-            
-            if(!post.IsSelf)
-            {
-                return new Uri(post.Url);
-            }
-
-            return null;
         }
     }
 }

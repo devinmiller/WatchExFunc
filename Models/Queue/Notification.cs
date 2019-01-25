@@ -2,9 +2,9 @@ using System;
 
 namespace CotB.WatchExchange.Models.Queue
 {
-    public class PostNotification
+    public class Notification
     {
-        public PostNotification(string id, string title)
+        public Notification(string id, string title)
         {
             Id = id;
             Title = title;

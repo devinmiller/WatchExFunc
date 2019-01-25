@@ -15,6 +15,7 @@ namespace CotB.WatchExchange
 {
     public static class NewPostNotifier
     {
+        [Disable]
         [FunctionName("NewPostNotifier")]
         public static void Run(
             [QueueTrigger("notifications", Connection = "WexConn")]string queueItem, 
@@ -33,7 +34,7 @@ namespace CotB.WatchExchange
             // Ugly, but will prevent notifications from being sent from 13:00PM - 04:00AM GMT
             if(DateTime.Now.Hour < 4 || DateTime.Now.Hour >= 13) 
             {
-                PostNotification notification = JsonConvert.DeserializeObject<PostNotification>(queueItem);
+                Notification notification = JsonConvert.DeserializeObject<Notification>(queueItem);
 
                 string to = config["TwilioMessageTo"];
                 string from = config["TwilioMessageFrom"];

@@ -14,6 +14,7 @@ using Microsoft.WindowsAzure.Storage.Table;
 using Microsoft.WindowsAzure.Storage.Blob;
 using Newtonsoft.Json;
 using CotB.WatchExchange.Models.Queue;
+using Microsoft.AspNetCore.Http;
 
 namespace CotB.WatchExchange
 {
@@ -25,10 +26,10 @@ namespace CotB.WatchExchange
 
         [FunctionName("NewPostParserStorage")]
         public static async Task Run(
-            [TimerTrigger("0 */5 * * * *")]TimerInfo myTimer, 
+            [TimerTrigger("0 */1 * * * *")]TimerInfo myTimer, 
             [Table("Posts", Connection = "WexConn")]CloudTable input,
-            [Table("Posts", Connection = "WexConn")]IAsyncCollector<PostData> tableOutput,
-            [Queue("notifications", Connection = "WexConn")]IAsyncCollector<PostNotification> queueOutput,
+            [Queue("notifications", Connection = "WexConn")]IAsyncCollector<Notification> notifications,
+            [Queue("downloads", Connection = "WexConn")]IAsyncCollector<Download> downloads,
             ILogger log)
         {
             log.LogInformation($"C# Timer trigger function executed at: {DateTime.Now}");
@@ -57,7 +58,7 @@ namespace CotB.WatchExchange
                     foreach (PostData post in posts)
                     {
                         //Create the retrieve operation that checks if entity exists
-                        TableOperation fetchOp = TableOperation.Retrieve<PostData>("Post", post.Id);
+                        TableOperation fetchOp = TableOperation.Retrieve<PostData>(post.Author, post.Id);
 
                         //Execute the retrieve operation
                         TableResult fetchResult = await input.ExecuteAsync(fetchOp);
@@ -65,18 +66,29 @@ namespace CotB.WatchExchange
                         //Check if the retrieve operation returned a result
                         if(fetchResult.Result == null)
                         {
-                            post.PartitionKey = "Post";
+                            post.PartitionKey = post.Author;
                             post.RowKey = post.Id;
 
                             log.LogInformation($"Adding new post {post.Id} to storage table");
 
-                            //Add entity to storage table if not found
-                            await tableOutput.AddAsync(post);                          
+                            // Create the TableOperation object that inserts the customer entity.
+                            TableOperation insertOperation = TableOperation.Insert(post);
 
-                            log.LogInformation($"Adding new post {post.Id} to notification queue");
+                            // Execute the insert operation.
+                            TableResult insertResult = await input.ExecuteAsync(insertOperation);   
 
-                            //Add new download entity to queue
-                            await queueOutput.AddAsync(new PostNotification(post.Id, post.Title));
+                            if(insertResult.HttpStatusCode == StatusCodes.Status204NoContent)
+                            {
+                                log.LogInformation($"Adding new post {post.Id} to queues");
+
+                                //Add new entity to queues
+                                await notifications.AddAsync(new Notification(post.Id, post.Title));
+                                await downloads.AddAsync(new Download(post.Id, post.Author, post.Thumbnail, post.Preview));
+                            }
+                            else
+                            {
+                                log.LogWarning($"Unexpected response (${insertResult.HttpStatusCode}) from table storage.");
+                            }                      
 
                             total++;
                         }

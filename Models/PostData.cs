@@ -20,6 +20,9 @@ namespace CotB.WatchExchange.Models
         [JsonProperty("domain")]
         public string Domain { get; set; }
 
+        public bool HasThumbnail { get; set; }
+        public bool HasPreview { get; set; }
+
         [JsonProperty("is_meta")]
         public bool IsMeta { get; set; }
 

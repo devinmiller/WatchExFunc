@@ -31,7 +31,7 @@ namespace CotB.WatchExchange
             [TimerTrigger("0 */5 0-5,13-23 * * *")]TimerInfo myTimer, 
             [CosmosDB("WatchExchange", "Posts", ConnectionStringSetting = "WexConnCosmos")]DocumentClient documentClient,
             [CosmosDB("WatchExchange", "Posts", ConnectionStringSetting = "WexConnCosmos")]IAsyncCollector<dynamic> documentOutput,
-            [Queue("notifications", Connection = "WexConn")]IAsyncCollector<PostNotification> queueOutput,
+            [Queue("notifications", Connection = "WexConn")]IAsyncCollector<Notification> queueOutput,
             [Blob("images", FileAccess.ReadWrite, Connection = "WexConn")]CloudBlobContainer blobOutput,
             ILogger log)
         {
@@ -81,7 +81,7 @@ namespace CotB.WatchExchange
                             await documentOutput.AddAsync(post);
 
                             //Create notification entity
-                            PostNotification notification = new PostNotification(post.Id, post.Title);
+                            Notification notification = new Notification(post.Id, post.Title);
 
                             string imageUrl = await UploadImage(post, blobOutput);
 
