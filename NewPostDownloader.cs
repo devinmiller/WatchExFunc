@@ -71,19 +71,45 @@ namespace CotB.WatchExchange
                 if(preview != null)
                 {
                     Image image = preview.Images.FirstOrDefault();
-
-                    log.LogInformation($"Downloading image from {HttpUtility.HtmlDecode(image.Source.Url)}");
-
-                    //Stream image from link
-                    using(Stream stream = await httpClient.GetStreamAsync(HttpUtility.HtmlDecode(image.Source.Url)))
+                    
+                    if(image.Source != null)
                     {
-                        //Create block blob reference
-                        CloudBlockBlob blob = blobOutput.GetBlockBlobReference($"{download.Id}_preview_source.jpg");
-                        
-                        //Write image stream to blob block
-                        await blob.UploadFromStreamAsync(stream);
+                        log.LogInformation($"Downloading source image image from {HttpUtility.HtmlDecode(image.Source.Url)}");
 
-                        post.HasPreview = true;
+                        //Stream source image from link
+                        using(Stream stream = await httpClient.GetStreamAsync(HttpUtility.HtmlDecode(image.Source.Url)))
+                        {
+                            //Create block blob reference
+                            CloudBlockBlob blob = blobOutput.GetBlockBlobReference($"{download.Id}_source.jpg");
+                            
+                            //Write image stream to blob block
+                            await blob.UploadFromStreamAsync(stream);
+
+                            post.HasImage = true;
+                            post.ImageWidth = image.Source.Width;
+                            post.ImageHeight = image.Source.Height;
+                        }
+                    }
+
+                    ImageData previewResolution = image.Resolutions.SingleOrDefault(x => x.Width == 640);
+
+                    if(previewResolution != null)
+                    {
+                        log.LogInformation($"Downloading preview image image from {HttpUtility.HtmlDecode(previewResolution.Url)}");
+
+                        //Stream source image from link
+                        using(Stream stream = await httpClient.GetStreamAsync(HttpUtility.HtmlDecode(previewResolution.Url)))
+                        {
+                            //Create block blob reference
+                            CloudBlockBlob blob = blobOutput.GetBlockBlobReference($"{download.Id}_preview.jpg");
+                            
+                            //Write image stream to blob block
+                            await blob.UploadFromStreamAsync(stream);
+
+                            post.HasPreview = true;
+                            post.PreviewWidth = previewResolution.Width;
+                            post.PreviewHeight = previewResolution.Height;
+                        }
                     }
                 }
 
