@@ -24,6 +24,7 @@ namespace CotB.WatchExchange
         // https://docs.microsoft.com/en-us/azure/azure-functions/manage-connections
         private static HttpClient httpClient = new HttpClient();
 
+        [Disable]
         [FunctionName("NewPostParserStorage")]
         public static async Task Run(
             [TimerTrigger("0 */5 * * * *")]TimerInfo myTimer, 
