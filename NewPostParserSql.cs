@@ -11,6 +11,7 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Wex.Context;
 using Wex.Context.Models;
+using System.Web;
 
 namespace WatchExFunc
 {
@@ -45,7 +46,7 @@ namespace WatchExFunc
                     .Select(post => post.Data)
                     .ToList();
 
-                int total = 0;
+                List<Post> newPosts = new List<Post>();
 
                 if (posts != null)
                 {
@@ -79,46 +80,49 @@ namespace WatchExFunc
                                     Permalink = postData.Permalink,
                                     Url = postData.Url,
                                     SelfText = postData.SelfText,
+
+                                    Images = new List<Image>()
                                 };
 
-                                if(postData.Preview != null)
+                                if(postData.Preview != null && postData.Preview.Enabled)
                                 {
-                                    post.Preview = new Preview()
+                                    foreach (Reddit.Image image in postData.Preview.Images)
                                     {
-                                        Enabled = postData.Preview.Enabled
-                                    };
-
-                                    Reddit.Image image = postData.Preview.Images.FirstOrDefault();
-
-                                    if(image != null)
-                                    {
-                                        post.Preview.Source = new Image()
+                                        post.Images.Add(new Image()
                                         {
+                                            ImageType = ImageType.Source,
                                             Url = image.Source.Url,
                                             Width = image.Source.Width,
                                             Height = image.Source.Height
-                                        };
+                                        });
 
-                                        post.Preview.Resolutions = image.Resolutions.Select(x => new Image()
-                                        {
-                                            Url = x.Url,
-                                            Width = x.Width,
-                                            Height = x.Height
-                                        })
-                                        .ToList();
+                                        post.Images = post.Images.Concat(
+                                            image.Resolutions.Select(x => new Image()
+                                            {
+                                                ImageType = ImageType.Resolution,
+                                                Url = x.Url,
+                                                Width = x.Width,
+                                                Height = x.Height
+                                            })).ToList();
                                     }
                                 }
                             
                                 context.Attach(post);
-                                
-                                total++;
+
+                                newPosts.Add(post);
                             }
                         }
 
-                        await context.SaveChangesAsync();
+                       await context.SaveChangesAsync();
+
+                        foreach (Post post in newPosts.Where(p => p.Images.Any()))
+                        {
+                            await downloads.AddAsync(new Download(post.Id));
+                        }
+
                     }
                         
-                    log.LogInformation($"Found a total of {total} new posts");
+                    log.LogInformation($"Found a total of {newPosts.Count} new posts");
                 }
             }
             else

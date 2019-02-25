@@ -5,7 +5,7 @@ using System.Net.Http;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using CotB.WatchExchange.Models.Queue;
-using CotB.WatchExchange.Models;
+using Reddit = CotB.WatchExchange.Models;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Host;
 using Microsoft.Extensions.Logging;
@@ -13,6 +13,10 @@ using Microsoft.WindowsAzure.Storage.Blob;
 using Microsoft.WindowsAzure.Storage.Table;
 using Newtonsoft.Json;
 using System.Web;
+using Wex.Context;
+using Wex.Context.Models;
+using Microsoft.EntityFrameworkCore;
+using System.Net.Http.Headers;
 
 namespace CotB.WatchExchange
 {
@@ -25,8 +29,6 @@ namespace CotB.WatchExchange
         [FunctionName("NewPostDownloader")]
         public static async Task Run(
             [QueueTrigger("downloads", Connection = "WexConn")]string queueItem, 
-            [Table("Posts", Connection = "WexConn")]CloudTable input,
-            [Queue("notifications", Connection = "WexConn")]IAsyncCollector<Notification> queueOutput,
             [Blob("images", FileAccess.ReadWrite, Connection = "WexConn")]CloudBlobContainer blobOutput,
             ILogger log)
         {
@@ -34,90 +36,59 @@ namespace CotB.WatchExchange
 
             Download download = JsonConvert.DeserializeObject<Download>(queueItem);
 
-            //Create the retrieve operation that checks if entity exists
-            TableOperation fetchOp = TableOperation.Retrieve<PostData>(download.Author, download.Id);
-
-            //Execute the retrieve operation
-            TableResult fetchResult = await input.ExecuteAsync(fetchOp);
-
-            PostData post = fetchResult.Result as PostData;
-
-            //Check if the retrieve operation returned a result
-            if(post == null)
+            using(WexContext context = new WexContext())
             {
-                log.LogError($"Unable to retrieve post with Id {download.Id}");
-            }
-            else
-            {
-                if(download.ThumbnailUrl != "self")
+                Post post = await context.Posts.Include(p => p.Images).SingleOrDefaultAsync(p => p.Id == download.Id);
+
+                //Check if the retrieve operation returned a result
+                if(post == null)
                 {
-                    log.LogInformation($"Downloading image from {download.ThumbnailUrl}");
-                    
-                    //Stream image from link
-                    using(Stream stream = await httpClient.GetStreamAsync(download.ThumbnailUrl))
-                    {
-                        //Create block blob reference
-                        CloudBlockBlob blob = blobOutput.GetBlockBlobReference($"{download.Id}_thumbnail.jpg");
-                        
-                        //Write image stream to blob block
-                        await blob.UploadFromStreamAsync(stream);
-                    }
-
-                    post.HasThumbnail = true;
+                    log.LogError($"Unable to retrieve post with Id {download.Id}");
                 }
-
-                Preview preview = download.Preview;
-
-                if(preview != null)
+                else
                 {
-                    Image image = preview.Images.FirstOrDefault();
-                    
-                    if(image.Source != null)
+                    foreach (Image image in post.Images)
                     {
-                        log.LogInformation($"Downloading source image image from {HttpUtility.HtmlDecode(image.Source.Url)}");
+                        int attempts = 0;
 
-                        //Stream source image from link
-                        using(Stream stream = await httpClient.GetStreamAsync(HttpUtility.HtmlDecode(image.Source.Url)))
+                        do
                         {
-                            //Create block blob reference
-                            CloudBlockBlob blob = blobOutput.GetBlockBlobReference($"{download.Id}_source.jpg");
-                            
-                            //Write image stream to blob block
-                            await blob.UploadFromStreamAsync(stream);
+                            try
+                            {
+                                log.LogInformation($"Downloading image from {image.Url}");
 
-                            post.HasImage = true;
-                            post.ImageWidth = image.Source.Width;
-                            post.ImageHeight = image.Source.Height;
+                                attempts++;
+
+                                httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("image/webp"));
+
+                                //Stream image from link
+                                using (Stream stream = await httpClient.GetStreamAsync(HttpUtility.HtmlDecode(image.Url)))
+                                {
+                                    //Create block blob reference
+                                    CloudBlockBlob blob = blobOutput.GetBlockBlobReference(
+                                        $"{post.Id}_{post.RedditId}_{image.ImageType.ToString("g")}_{image.Width}_X_{image.Height}.jpg");
+
+                                    //Write image stream to blob block
+                                    await blob.UploadFromStreamAsync(stream);
+                                }
+
+                                break;
+
+                            }
+                            catch (Exception ex)
+                            {
+                                if (attempts == 3)
+                                {
+                                    log.LogError(ex, $"Error downloading image from {HttpUtility.HtmlDecode(image.Url)}");
+                                    break;
+                                }
+
+                                Task.Delay(500).Wait();
+                            }
                         }
-                    }
-
-                    ImageData previewResolution = image.Resolutions.SingleOrDefault(x => x.Width == 640);
-
-                    if(previewResolution != null)
-                    {
-                        log.LogInformation($"Downloading preview image image from {HttpUtility.HtmlDecode(previewResolution.Url)}");
-
-                        //Stream source image from link
-                        using(Stream stream = await httpClient.GetStreamAsync(HttpUtility.HtmlDecode(previewResolution.Url)))
-                        {
-                            //Create block blob reference
-                            CloudBlockBlob blob = blobOutput.GetBlockBlobReference($"{download.Id}_preview.jpg");
-                            
-                            //Write image stream to blob block
-                            await blob.UploadFromStreamAsync(stream);
-
-                            post.HasPreview = true;
-                            post.PreviewWidth = previewResolution.Width;
-                            post.PreviewHeight = previewResolution.Height;
-                        }
+                        while (true);
                     }
                 }
-
-                // Create the Replace TableOperation.
-                TableOperation updateOperation = TableOperation.Replace(post);
-
-                // Execute the operation.
-                await input.ExecuteAsync(updateOperation);
             }
         }
     }
