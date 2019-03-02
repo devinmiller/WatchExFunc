@@ -6,7 +6,7 @@ using Newtonsoft.Json;
 
 namespace CotB.WatchExchange.Models
 {
-    public class PostData : TableEntity
+    public class PostData
     {
         [JsonProperty("id")]
         public string Id { get; set; }
@@ -14,21 +14,11 @@ namespace CotB.WatchExchange.Models
         [JsonProperty("author")]
         public string Author { get; set; }
 
-        [JsonProperty("create_utc")]
+        [JsonProperty("created_utc")]
         public uint CreatedUtc { get; set; }
 
         [JsonProperty("domain")]
         public string Domain { get; set; }
-
-        public bool HasThumbnail { get; set; }
-
-        public bool HasPreview { get; set; }
-        public int PreviewWidth { get; set; }
-        public int PreviewHeight { get; set; }
-
-        public bool HasImage { get; set; }
-        public int ImageWidth { get; set; }
-        public int ImageHeight { get; set; }
 
         [JsonProperty("is_meta")]
         public bool IsMeta { get; set; }
