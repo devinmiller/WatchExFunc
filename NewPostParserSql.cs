@@ -84,7 +84,7 @@ namespace WatchExFunc
                                     Images = new List<Image>()
                                 };
 
-                                if(postData.Preview != null && postData.Preview.Enabled)
+                                if(postData.Preview != null)
                                 {
                                     foreach (Reddit.Image image in postData.Preview.Images)
                                     {
