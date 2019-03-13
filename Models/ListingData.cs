@@ -10,7 +10,7 @@ namespace CotB.WatchExchange.Models
         public string ModHash { get; set; }
 
         [JsonProperty("dist")]
-        public int Count { get; set; }
+        public int? Count { get; set; }
 
         [JsonProperty("children")]
         public List<Post> Posts { get; set; }
