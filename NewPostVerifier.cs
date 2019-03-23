@@ -28,11 +28,39 @@ namespace WatchExFunc
         {
             log.LogInformation($"C# Timer trigger function executed at: {DateTime.Now}");
 
+            await CheckForImages(downloads, log);
+        }
+
+        /// <summary>
+        /// TODO: Will check for posts that have been deleted and remove the corresponding database
+        /// and blob entries.
+        /// </summary>
+        private static async Task CheckForDeleted()
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// TODO: Will check for posts with matching authors/titles, deleting the old of the two.
+        /// The intent is to handle the following scenarios:
+        /// 1.  A legitimate repost to get back on the front page. 
+        /// 2.  A duplicate of a new post that wasn't deleted correctly.
+        /// </summary>
+        private static async Task CheckForDuplicates()
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// Recheck posts withinm the last 15 minutes for images.
+        /// </summary>
+        private static async Task CheckForImages(IAsyncCollector<Download> downloads, ILogger log)
+        {
             using (WexContext context = new WexContext())
             {
                 var offset = DateTimeOffset.UtcNow.AddMinutes(-15).ToUnixTimeSeconds();
 
-                var posts = context.Posts.Where(x => 
+                var posts = context.Posts.Where(x =>
                     x.CreatedUtc > offset &&
                     x.IsMeta == false &&
                     x.Stickied == false &&
@@ -42,6 +70,10 @@ namespace WatchExFunc
 
                 foreach (var post in posts)
                 {
+                    log.LogInformation(
+                        "Retrieving JSON for {PostId}:{RedditId} from {Permalink}",
+                        post.Id, post.RedditId, post.Permalink);
+
                     // Pull json data back from the /r/WatchExchange feed sorted by newest posts
                     HttpResponseMessage response = await httpClient.GetAsync($"https://www.reddit.com{post.Permalink}.json");
 
@@ -58,8 +90,12 @@ namespace WatchExFunc
                             .Select(x => x.Data)
                             .SingleOrDefault();
 
-                        if (postData.Preview != null)
+                        if (postData?.Preview != null)
                         {
+                            log.LogInformation(
+                                "Found images for {PostId}:{RedditId}",
+                                post.Id, post.RedditId);
+
                             post.Images = new List<Image>();
 
                             foreach (Reddit.Image image in postData.Preview.Images)
@@ -84,6 +120,12 @@ namespace WatchExFunc
 
                             newPosts.Add(post);
                         }
+                    }
+                    else
+                    {
+                        log.LogWarning(
+                            "Unable to retrieve JSON for {PostId}:{RedditId} - {Reason}",
+                            post.Id, post.RedditId, response.ReasonPhrase);
                     }
                 }
 
