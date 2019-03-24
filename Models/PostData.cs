@@ -50,7 +50,7 @@ namespace CotB.WatchExchange.Models
         [JsonProperty("secure_media")]
         public SecureMedia SecureMedia { get; set; }
 
-        [JsonProperty("self_text")]
+        [JsonProperty("selftext")]
         public string SelfText { get; set; }
 
         [JsonProperty("thumbnail")]
