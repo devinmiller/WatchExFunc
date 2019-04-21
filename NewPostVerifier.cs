@@ -46,7 +46,11 @@ namespace WatchExFunc
 
             log.LogInformation($"Executing check for missing images at {DateTime.Now}");
 
-            await CheckForImages(downloads, log);
+            await CheckForImages(downloads, config, log);
+
+            log.LogInformation($"Executing check for duplicate posts at {DateTime.Now}");
+
+            await CheckForDuplicates(config, log);
         }
 
         /// <summary>
@@ -57,7 +61,12 @@ namespace WatchExFunc
         {
             using (WexContext context = new WexContext())
             {
-                var offset = DateTimeOffset.UtcNow.AddMinutes(-15).ToUnixTimeSeconds();
+                if(!double.TryParse(config["NewVerificationOffset"], out double offsetMinutes))
+                {
+                    offsetMinutes = -15;
+                }
+
+                var offset = DateTimeOffset.UtcNow.AddMinutes(offsetMinutes).ToUnixTimeSeconds();
 
                 var posts = context.Posts
                     .Where(x =>
@@ -92,48 +101,7 @@ namespace WatchExFunc
                         {
                             log.LogInformation("Found deleted post {PostID} from {Permalink}", post.Id, post.Permalink);
 
-                            if (post.Images != null)
-                            {
-                                if (CloudStorageAccount.TryParse(config["WexConn"], out CloudStorageAccount storageAccount))
-                                {
-                                    string containerName = "images";
-                                    CloudBlobClient cloudBlobClient = storageAccount.CreateCloudBlobClient();
-                                    CloudBlobContainer cloudBlobContainer = cloudBlobClient.GetContainerReference(containerName);
-
-                                    foreach (Image image in post.Images)
-                                    {
-                                        try
-                                        {
-                                            string fileName =
-                                                $"{post.Id}_{post.RedditId}_{image.ImageType.ToString("g")}_{image.Width}_X_{image.Height}.jpg";
-
-                                            CloudBlockBlob cloudBlockBlob = cloudBlobContainer.GetBlockBlobReference(fileName);
-
-                                            log.LogInformation("Deleting file {FileName} from blob storage container {ContainerName}", fileName, containerName);
-
-                                            await cloudBlockBlob.DeleteIfExistsAsync();
-
-                                            log.LogInformation("Delete image {ImageId} from database", image.Id);
-
-                                            context.Images.Remove(image);
-                                        }
-                                        catch(Exception ex)
-                                        {
-                                            log.LogError(ex, "Error deleting image {ImageID}", image.Id);
-                                        }
-                                    }
-                                }
-                                else
-                                {
-                                    log.LogError("Unable to connect to blob storage with expected connection string: {ConnectionName}", "WexConn");
-                                }
-                            }
-
-                            log.LogInformation("Delete post {PostId} from database", post.Id);
-
-                            context.Posts.Remove(post);
-
-                            await context.SaveChangesAsync();
+                            await DeletePost(post, context, config, log);
                         }
                     }
                     else
@@ -147,24 +115,47 @@ namespace WatchExFunc
         }
 
         /// <summary>
-        /// TODO: Will check for posts with matching authors/titles, deleting the old of the two.
+        /// Will check for posts with matching authors/titles, deleting the old of the two.
         /// The intent is to handle the following scenarios:
         /// 1.  A legitimate repost to get back on the front page. 
         /// 2.  A duplicate of a new post that wasn't deleted correctly.
         /// </summary>
         private static async Task CheckForDuplicates(IConfiguration config, ILogger log)
         {
-            throw new NotImplementedException();
+            using (WexContext context = new WexContext())
+            {
+                var duplicatePosts = context.Posts
+                    .Where(x =>
+                        x.IsMeta == false &&
+                        x.Stickied == false)
+                    .GroupBy(x => new { Title = x.Title.ToLower(), Author = x.Author.ToLower() })
+                    .Where(x => x.Count() > 1)
+                    .SelectMany(x => x.OrderByDescending(d => d.CreatedUtc).Skip(1))
+                    .Include(x => x.Images)
+                    .ToList();
+
+                foreach (var post in duplicatePosts)
+                {
+                    log.LogInformation("Found duplicate(s) of post {PostId} by {PostAuthor} titled {PostTitle}");
+
+                    await DeletePost(post, context, config, log);
+                }
+            }
         }
 
         /// <summary>
         /// Recheck posts withinm the last 15 minutes for images.
         /// </summary>
-        private static async Task CheckForImages(IAsyncCollector<Download> downloads, ILogger log)
+        private static async Task CheckForImages(IAsyncCollector<Download> downloads, IConfiguration config, ILogger log)
         {
             using (WexContext context = new WexContext())
             {
-                var offset = DateTimeOffset.UtcNow.AddMinutes(-15).ToUnixTimeSeconds();
+                if (!double.TryParse(config["NewVerificationOffset"], out double offsetMinutes))
+                {
+                    offsetMinutes = -15;
+                }
+
+                var offset = DateTimeOffset.UtcNow.AddMinutes(offsetMinutes).ToUnixTimeSeconds();
 
                 var posts = context.Posts.Where(x =>
                     x.CreatedUtc > offset &&
@@ -244,6 +235,52 @@ namespace WatchExFunc
 
                 log.LogInformation("Found a total of {PostCount} posts missing images.", newPosts.Count);
             }
+        }
+
+        private static async Task DeletePost(Post post, WexContext context, IConfiguration config, ILogger log)
+        {
+            if (post.Images != null)
+            {
+                if (CloudStorageAccount.TryParse(config["WexConn"], out CloudStorageAccount storageAccount))
+                {
+                    string containerName = "images";
+                    CloudBlobClient cloudBlobClient = storageAccount.CreateCloudBlobClient();
+                    CloudBlobContainer cloudBlobContainer = cloudBlobClient.GetContainerReference(containerName);
+
+                    foreach (Image image in post.Images)
+                    {
+                        try
+                        {
+                            string fileName =
+                                $"{post.Id}_{post.RedditId}_{image.ImageType.ToString("g")}_{image.Width}_X_{image.Height}.jpg";
+
+                            CloudBlockBlob cloudBlockBlob = cloudBlobContainer.GetBlockBlobReference(fileName);
+
+                            log.LogInformation("Deleting file {FileName} from blob storage container {ContainerName}", fileName, containerName);
+
+                            await cloudBlockBlob.DeleteIfExistsAsync();
+
+                            log.LogInformation("Delete image {ImageId} from database", image.Id);
+
+                            context.Images.Remove(image);
+                        }
+                        catch (Exception ex)
+                        {
+                            log.LogError(ex, "Error deleting image {ImageID}", image.Id);
+                        }
+                    }
+                }
+                else
+                {
+                    log.LogError("Unable to connect to blob storage with expected connection string: {ConnectionName}", "WexConn");
+                }
+            }
+
+            log.LogInformation("Delete post {PostId} from database", post.Id);
+
+            context.Posts.Remove(post);
+
+            await context.SaveChangesAsync();
         }
     }
 }
